@@ -144,6 +144,7 @@ async function initializeMCPClient() {
 
 // Convert JSON Schema to Gemini Schema recursively
 function convertSchema(schema: any): any {
+  // console.log("schema", schema);
   if (!schema) return { type: SchemaType.STRING };
 
   if (schema.type === "object" && schema.properties) {
@@ -192,6 +193,7 @@ async function getMCPTools(): Promise<FunctionDeclaration[]> {
     return toolsList.tools.map((tool) => {
       const schema = tool.inputSchema as any;
       const convertedSchema = convertSchema(schema);
+      // console.log("convertedSchema", convertedSchema);
 
       return {
         name: tool.name,
