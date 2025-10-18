@@ -26,16 +26,31 @@ npm install
 
 2. Create a `.env.local` file in the root directory:
 
+**Option A: Local MCP Server (Python/Node)**
+```bash
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Local Python MCP Server (e.g., FPL MCP Server)
+MCP_SERVER_COMMAND=python
+MCP_SERVER_ARGS=-m,fpl_mcp_server
+
+# Or with direct path
+# MCP_SERVER_ARGS=/path/to/your/mcp-server/main.py
+
+# Or Node.js server
+# MCP_SERVER_COMMAND=node
+# MCP_SERVER_ARGS=path/to/your/mcp-server.js
+```
+
+**Option B: OP.GG MCP API (Remote)**
 ```bash
 GEMINI_API_KEY=your_gemini_api_key_here
 
 # OPGG MCP Server URL (for OP.GG esports data)
-OPGG_MCP_URL=your_opgg_mcp_url_here
-
-# Optional: Configure local MCP server via stdio
-MCP_SERVER_COMMAND=node
-MCP_SERVER_ARGS=path/to/your/mcp-server.js
+OPGG_MCP_URL=https://mcp-api.op.gg/mcp
 ```
+
+**Note:** If both are configured, `MCP_SERVER_COMMAND` takes priority.
 
 3. Run the development server:
 

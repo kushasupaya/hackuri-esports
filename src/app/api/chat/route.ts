@@ -31,8 +31,19 @@ async function initializeMCPClient() {
   try {
     let transport;
 
-    // Check if OPGG_MCP_URL is provided (URL-based connection)
-    if (process.env.OPGG_MCP_URL) {
+    // Priority 1: Local Python/Node MCP server (stdio)
+    if (process.env.MCP_SERVER_COMMAND) {
+      console.log(
+        "Using stdio transport with command:",
+        process.env.MCP_SERVER_COMMAND
+      );
+      transport = new StdioClientTransport({
+        command: process.env.MCP_SERVER_COMMAND,
+        args: process.env.MCP_SERVER_ARGS?.split(",") || [],
+      });
+    }
+    // Priority 2: OPGG_MCP_URL is provided (URL-based connection)
+    else if (process.env.OPGG_MCP_URL) {
       const urlString = process.env.OPGG_MCP_URL;
       console.log("Attempting to connect to OPGG MCP server at:", urlString);
 
@@ -72,17 +83,6 @@ async function initializeMCPClient() {
         );
         transport = new StreamableHTTPClientTransport(mcpUrl);
       }
-    }
-    // Fall back to stdio transport if command is provided
-    else if (process.env.MCP_SERVER_COMMAND) {
-      console.log(
-        "Using stdio transport with command:",
-        process.env.MCP_SERVER_COMMAND
-      );
-      transport = new StdioClientTransport({
-        command: process.env.MCP_SERVER_COMMAND,
-        args: process.env.MCP_SERVER_ARGS?.split(",") || [],
-      });
     } else {
       console.warn(
         "No MCP server configured (OPGG_MCP_URL or MCP_SERVER_COMMAND)"
