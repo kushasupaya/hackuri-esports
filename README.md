@@ -50,7 +50,26 @@ GEMINI_API_KEY=your_gemini_api_key_here
 OPGG_MCP_URL=https://mcp-api.op.gg/mcp
 ```
 
-**Note:** If both are configured, `MCP_SERVER_COMMAND` takes priority.
+**Option C: Use Multiple MCP Servers (Recommended!)**
+```bash
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# FPL MCP Server for Fantasy Premier League data
+FPL_MCP_COMMAND=python3.12
+FPL_MCP_ARGS=-m,fpl_mcp
+
+# NBA MCP Server for basketball data
+NBA_MCP_COMMAND=python3.12
+NBA_MCP_ARGS=-m,nba_mcp_server
+
+# Optional: OP.GG for esports data
+# OPGG_MCP_URL=https://mcp-api.op.gg/mcp
+
+# Optional: Cloudbet for betting odds
+# CLOUDBET_MCP_URL=http://localhost:8080
+```
+
+**Note:** You can enable **all servers** simultaneously! Gemini will have access to tools from all configured servers.
 
 3. Run the development server:
 

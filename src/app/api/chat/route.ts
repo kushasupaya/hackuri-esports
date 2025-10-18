@@ -22,123 +22,115 @@ interface ChatRequest {
   messages: Message[];
 }
 
-// Initialize MCP client (example with a simple server)
-let mcpClient: Client | null = null;
+// Store multiple MCP clients
+let mcpClients: Map<string, Client> = new Map();
 
-async function initializeMCPClient() {
-  if (mcpClient) return mcpClient;
-
+// Initialize a single MCP client
+async function initializeSingleMCPClient(
+  name: string,
+  transport: any
+): Promise<Client | null> {
   try {
-    let transport;
-
-    // Priority 1: Local Python/Node MCP server (stdio)
-    if (process.env.MCP_SERVER_COMMAND) {
-      console.log(
-        "Using stdio transport with command:",
-        process.env.MCP_SERVER_COMMAND
-      );
-      transport = new StdioClientTransport({
-        command: process.env.MCP_SERVER_COMMAND,
-        args: process.env.MCP_SERVER_ARGS?.split(",") || [],
-      });
-    }
-    // Priority 2: OPGG_MCP_URL is provided (URL-based connection)
-    else if (process.env.OPGG_MCP_URL) {
-      const urlString = process.env.OPGG_MCP_URL;
-      console.log("Attempting to connect to OPGG MCP server at:", urlString);
-
-      // Try to parse the URL
-      let mcpUrl: URL;
-      try {
-        mcpUrl = new URL(urlString);
-      } catch (urlError) {
-        console.error("Invalid OPGG_MCP_URL format:", urlError);
-        throw new Error(
-          `Invalid OPGG_MCP_URL: ${urlString}. Must be a valid URL (e.g., https://mcp-api.op.gg/mcp)`
-        );
-      }
-
-      // Log the URL details for debugging
-      console.log(
-        "Parsed URL - Protocol:",
-        mcpUrl.protocol,
-        "Host:",
-        mcpUrl.host,
-        "Path:",
-        mcpUrl.pathname
-      );
-
-      // Choose transport based on protocol and URL
-      if (mcpUrl.protocol === "ws:" || mcpUrl.protocol === "wss:") {
-        console.log("Using WebSocket transport");
-        transport = new WebSocketClientTransport(mcpUrl);
-      } else if (mcpUrl.pathname.includes("sse")) {
-        console.log("Using SSE transport");
-        transport = new SSEClientTransport(mcpUrl);
-      } else {
-        // Default to StreamableHTTP for HTTP/HTTPS endpoints
-        // This is the most common for MCP APIs like OP.GG
-        console.log(
-          "Using StreamableHTTP transport (recommended for MCP APIs)"
-        );
-        transport = new StreamableHTTPClientTransport(mcpUrl);
-      }
-    } else {
-      console.warn(
-        "No MCP server configured (OPGG_MCP_URL or MCP_SERVER_COMMAND)"
-      );
-      return null;
-    }
-
-    mcpClient = new Client(
+    const client = new Client(
       {
-        name: "gemini-opgg-mcp-client",
+        name: `gemini-mcp-${name}`,
         version: "1.0.0",
       },
       {
-        capabilities: {},
+        capabilities: {
+          // Minimal client capabilities - only what we actually support
+          sampling: {},
+        },
       }
     );
 
-    console.log("Connecting to MCP transport...");
-    await mcpClient.connect(transport);
-    console.log("✅ Successfully connected to MCP server");
+    console.log(`[${name}] Connecting to MCP transport...`);
+    await client.connect(transport);
+    console.log(`[${name}] ✅ Successfully connected`);
 
     // List available tools for debugging
-    const tools = await mcpClient.listTools();
+    const tools = await client.listTools();
     console.log(
-      `✅ MCP server has ${tools.tools.length} tools available:`,
+      `[${name}] ✅ ${tools.tools.length} tools available:`,
       tools.tools.map((t) => t.name).join(", ")
     );
 
-    return mcpClient;
+    return client;
   } catch (error: any) {
-    console.error("❌ MCP client initialization failed:");
-    console.error("Error type:", error.constructor.name);
-    console.error("Error message:", error.message);
+    console.error(`[${name}] ❌ Connection failed:`, error);
+    if (error.message) {
+      console.error(`[${name}] Error details:`, error.message);
+    }
+    return null;
+  }
+}
 
-    if (error.code === 405) {
-      console.error(
-        "\n💡 TROUBLESHOOTING 405 ERROR:\n" +
-          "The transport method might not match the server.\n" +
-          "Current URL:",
-        process.env.OPGG_MCP_URL,
-        "\n" +
-          "Try:\n" +
-          "1. For OP.GG API: Use https://mcp-api.op.gg/mcp (StreamableHTTP)\n" +
-          "2. For SSE endpoints: Use URLs ending with /sse\n" +
-          "3. For WebSocket: Use ws:// or wss:// protocol"
+// Initialize all configured MCP clients
+async function initializeMCPClients() {
+  if (mcpClients.size > 0) return mcpClients;
+
+  console.log("\n🔧 Initializing MCP Clients...\n");
+
+  try {
+    // 1. FPL MCP Server (stdio)
+    if (process.env.FPL_MCP_COMMAND) {
+      console.log("Setting up FPL MCP Server (stdio)...");
+      const transport = new StdioClientTransport({
+        command: process.env.FPL_MCP_COMMAND,
+        args: process.env.FPL_MCP_ARGS?.split(",") || [],
+      });
+      const client = await initializeSingleMCPClient("fpl", transport);
+      if (client) mcpClients.set("fpl", client);
+    }
+
+    // 2. NBA MCP Server (stdio)
+    // if (process.env.NBA_MCP_COMMAND) {
+    //   console.log("Setting up NBA MCP Server (stdio)...");
+    //   const transport = new StdioClientTransport({
+    //     command: process.env.NBA_MCP_COMMAND,
+    //     args: process.env.NBA_MCP_ARGS?.split(",") || [],
+    //   });
+    //   const client = await initializeSingleMCPClient("nba", transport);
+    //   if (client) mcpClients.set("nba", client);
+    // }
+
+    // 3. OP.GG MCP Server (HTTP)
+    if (process.env.OPGG_MCP_URL) {
+      console.log("Setting up OP.GG MCP Server (HTTP)...");
+      const urlString = process.env.OPGG_MCP_URL;
+      const mcpUrl = new URL(urlString);
+
+      let transport;
+      if (mcpUrl.protocol === "ws:" || mcpUrl.protocol === "wss:") {
+        transport = new WebSocketClientTransport(mcpUrl);
+      } else if (mcpUrl.pathname.includes("sse")) {
+        transport = new SSEClientTransport(mcpUrl);
+      } else {
+        transport = new StreamableHTTPClientTransport(mcpUrl);
+      }
+
+      const client = await initializeSingleMCPClient("opgg", transport);
+      if (client) mcpClients.set("opgg", client);
+    }
+
+    if (mcpClients.size === 0) {
+      console.warn(
+        "⚠️  No MCP servers configured. Set at least one of:\n" +
+          "  - FPL_MCP_COMMAND (for FPL)\n" +
+          "  - NBA_MCP_COMMAND (for NBA)\n" +
+          "  - OPGG_MCP_URL\n" +
+          "  - CLOUDBET_MCP_URL"
       );
-    } else if (error.message?.includes("Failed to fetch")) {
-      console.error(
-        "\n💡 NETWORK ERROR:\n" +
-          "1. Check if the server is running and accessible\n" +
-          "2. Verify CORS settings if connecting from browser\n" +
-          "3. Check your network connection"
+    } else {
+      console.log(
+        `\n✅ Successfully connected to ${mcpClients.size} MCP server(s)\n`
       );
     }
 
-    return null;
+    return mcpClients;
+  } catch (error: any) {
+    console.error("❌ MCP client initialization failed:", error.message);
+    return mcpClients;
   }
 }
 
@@ -182,50 +174,75 @@ function convertSchema(schema: any): any {
   };
 }
 
-// Convert MCP tools to Gemini function declarations
+// Store tool -> client mapping for routing
+const toolToClientMap = new Map<string, string>();
+
+// Convert MCP tools from all clients to Gemini function declarations
 async function getMCPTools(): Promise<FunctionDeclaration[]> {
   try {
-    const client = await initializeMCPClient();
-    if (!client) return [];
+    const clients = await initializeMCPClients();
+    if (clients.size === 0) return [];
 
-    const toolsList = await client.listTools();
+    const allTools: FunctionDeclaration[] = [];
 
-    return toolsList.tools.map((tool) => {
-      const schema = tool.inputSchema as any;
-      const convertedSchema = convertSchema(schema);
-      // console.log("convertedSchema", convertedSchema);
+    // Collect tools from all clients
+    for (const [clientName, client] of clients.entries()) {
+      try {
+        const toolsList = await client.listTools();
 
-      return {
-        name: tool.name,
-        description: tool.description || "",
-        parameters:
-          convertedSchema.type === SchemaType.OBJECT
-            ? convertedSchema
-            : {
-                type: SchemaType.OBJECT,
-                properties: {},
-              },
-      } as FunctionDeclaration;
-    });
+        for (const tool of toolsList.tools) {
+          // Map tool name to client for later routing
+          toolToClientMap.set(tool.name, clientName);
+
+          const schema = tool.inputSchema as any;
+          const convertedSchema = convertSchema(schema);
+
+          allTools.push({
+            name: tool.name,
+            description: `[${clientName.toUpperCase()}] ${
+              tool.description || ""
+            }`,
+            parameters:
+              convertedSchema.type === SchemaType.OBJECT
+                ? convertedSchema
+                : {
+                    type: SchemaType.OBJECT,
+                    properties: {},
+                  },
+          } as FunctionDeclaration);
+        }
+      } catch (error) {
+        console.warn(`Failed to get tools from ${clientName}:`, error);
+      }
+    }
+
+    return allTools;
   } catch (error) {
     console.warn("Failed to get MCP tools:", error);
     return [];
   }
 }
 
-// Execute MCP tool call
+// Execute MCP tool call by routing to the correct client
 async function executeMCPTool(name: string, args: any) {
   try {
-    const client = await initializeMCPClient();
-    if (!client) {
-      return { error: "MCP client not available" };
+    const clientName = toolToClientMap.get(name);
+    if (!clientName) {
+      return { error: `Unknown tool: ${name}` };
     }
 
+    const client = mcpClients.get(clientName);
+    if (!client) {
+      return { error: `Client ${clientName} not available` };
+    }
+
+    console.log(`Executing tool "${name}" on ${clientName} MCP server...`);
     const result = await client.callTool({
       name,
       arguments: args,
     });
 
+    console.log(`Tool "${name}" executed successfully`);
     return result;
   } catch (error) {
     console.error("MCP tool execution error:", error);
