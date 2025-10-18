@@ -29,7 +29,10 @@ npm install
 ```bash
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Optional: Configure MCP server
+# OPGG MCP Server URL (for OP.GG esports data)
+OPGG_MCP_URL=your_opgg_mcp_url_here
+
+# Optional: Configure local MCP server via stdio
 MCP_SERVER_COMMAND=node
 MCP_SERVER_ARGS=path/to/your/mcp-server.js
 ```
@@ -64,7 +67,24 @@ The API route handles:
 
 ### MCP Server Configuration
 
-To connect your own MCP server:
+#### Option 1: OPGG MCP Server (Recommended for OP.GG Esports Data)
+
+The easiest way to access OP.GG esports data is via URL:
+
+```bash
+OPGG_MCP_URL=https://your-opgg-mcp-server-url.com
+```
+
+This will connect to the OPGG MCP server via SSE (Server-Sent Events) and give Gemini access to esports data like:
+- Player statistics
+- Match history
+- Tournament information
+- Team rankings
+- And more!
+
+#### Option 2: Local MCP Server (stdio)
+
+To connect your own local MCP server:
 
 1. Set `MCP_SERVER_COMMAND` to the command that runs your server
 2. Set `MCP_SERVER_ARGS` to comma-separated arguments (if needed)
